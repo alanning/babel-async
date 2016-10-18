@@ -1,0 +1,15 @@
+{
+  "name": "userlist",
+  "version": "1.0.0",
+  "description": "",
+  "main": "userList.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Adrian Lanning <alanning@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "mongodb": "^2.2.10",
+    "underscore": "^1.8.3"
+  }
+}

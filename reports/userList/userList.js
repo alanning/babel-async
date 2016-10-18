@@ -1,46 +1,88 @@
-// Usage: mongo --quiet <dbname> userList.js
-//
-
 "use strict"
 
-// prints users, sorted by create date
-// ex.
-//   Smith, John, jsmith@example.com, Demo School, 00000A
-//
-var delimiter = '\t',
-    type = "school",
-    buildingId = "",
-    parentId = "",
-    zips = [],
-    shareIds = [ ],
-    cursor;
+// NEW ASYNC/AWAIT EXAMPLE
+// execute via  `$ babel-node userList.js`
 
+const MongoClient = require('mongodb').MongoClient;
+const _ = require("underscore")
+const delimiter = "\t";
 
-if (type) {
-  addIds (shareIds, {type: type})
+async function getShareIds () {
+  let type = ""
+  let buildingId = ""
+  let parentId = ""
+  let zips = []
+  let shareIds = ["00000A"]
+
+  let promises = []
+
+  if (type) {
+    promises.push(addIds (shareIds, {type: type}))
+  }
+  if (parentId) {
+    promises.push(addIds (shareIds, {parent: parentId}))
+  }
+  if (buildingId) {
+    promises.push(addIds (shareIds, {building: buildingId}))
+  }
+  if (zips && zips.length > 0) {
+    promises.push(addIds (shareIds, {zip: {$in: zips}}))
+  }
+
+  await Promise.all(promises)
+  return shareIds
 }
 
-if (parentId) {
-  addIds (shareIds, {parent: parentId})
+main()
+
+async function main () {
+  let db
+  let options = { }
+
+  try {
+    db = await MongoClient.connect(process.env.MONGODB_URL, options)
+
+    printHeader()
+
+    const shareIds = await getShareIds()
+
+    let query = {'networks': {$in: shareIds}}
+
+    try {
+      const users = db.collection('users')
+      await listUsers(users, query)
+    }
+    catch (ex) {
+      console.log("ERROR: Connecting to collection", ex.message)
+      throw ex
+    }
+  }
+  catch (ex) {
+    console.log("ERROR: Connecting to remote db", ex.message)
+    throw ex
+  }
+  finally {
+    db.close()
+  }
 }
 
-if (buildingId) {
-  addIds (shareIds, {building: buildingId})
+async function listUsers (users, query) {
+  let fields,
+      cursor;
+
+  query = query || {}
+  fields = {"createdAt":1, "emails.address":1, "networks":1, "profile":1}
+
+  cursor = users.find(query, fields).sort({createdAt:-1})
+
+  const list = await cursor.toArray()
+  list.forEach(function (record) {
+    printRecord(record)
+  })
 }
-
-if (zips && zips.length > 0) {
-  addIds (shareIds, {zip: {$in: zips}})
-}
-
-printHeader ()
-
-printUsers (shareIds);
-
-
-
 
 function printHeader () {
-  var parts = [ "Created Date",
+  let parts = [ "Created Date",
                 "Emails",
                 "EmployeeID",
                 "ManagerIDs",
@@ -51,38 +93,18 @@ function printHeader () {
                 "Mobile",
                 "ShareIDs"]
 
-  print(parts.join(delimiter))
-}
-
-function printUsers (shareIds) {
-  var query,
-      fields,
-      cursor
-
-  shareIds = shareIds || []
-  
-  query = {'networks': {$in: shareIds}}
-
-  fields = {"createdAt":1,
-            "emails.address":1,
-            "networks":1,
-            "profile":1}
-
-  cursor = db.users.find(query, fields).sort({"createdAt":-1})
-  cursor.forEach(function (user) {
-    printRecord(user)
-  })
+  console.log(parts.join(delimiter))
 }
 
 function printRecord (user) {
-  var parts,
+  let parts,
       profile = user.profile || {},
       managerIds = profile.managerIds || [],
       channels = user.networks || []
 
   parts = [
     formatDate(user.createdAt),
-    _pluck(user.emails, "address").join(','),
+    _.pluck(user.emails, "address").join(','),
     profile.employeeId,
     managerIds.join(','),
     profile.firstname,
@@ -93,40 +115,18 @@ function printRecord (user) {
     channels.join(',')
   ]
 
-  print(parts.join(delimiter))
+  console.log(parts.join(delimiter))
 }
 
+async function addIds (destList, query) {
+  const fields = {code: 1, _id: 0}
+  const list = await db.networks.find(query, fields).toArray()
 
-
-//////////////////////////////////////////////////////////////////////
-// helpers
-//
-
-function addIds (destList, query) {
-  var cursor
-  cursor = db.networks.find(query, {code: 1, _id: 0})
-  cursor.forEach(function (channel) {
+  list.forEach(function (channel) {
     if (!_contains(destList, channel.code)) {
       destList.push(channel.code)
     }
   })
-}
-
-function _contains (haystack, needle) {
-  if (!haystack) {
-    return false
-  }
-  return -1 !== haystack.indexOf(needle)
-}
-
-function _pluck (arr, field) {
-  var result = []
-
-  for (var i = 0, len = arr.length; i < len; i++) {
-    result.push(arr[i][field])
-  }
-
-  return result
 }
 
 function formatDate (date) {
