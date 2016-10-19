@@ -3,9 +3,10 @@
 // NEW ASYNC/AWAIT EXAMPLE
 // execute via  `$ babel-node userList.js`
 
-const MongoClient = require('mongodb').MongoClient;
+const MongoClient = require('mongodb').MongoClient
 const _ = require("underscore")
-const delimiter = "\t";
+const delimiter = "\t"
+var db
 
 async function getShareIds () {
   let type = ""
@@ -36,7 +37,6 @@ async function getShareIds () {
 main()
 
 async function main () {
-  let db
   let options = { }
 
   try {
@@ -120,10 +120,11 @@ function printRecord (user) {
 
 async function addIds (destList, query) {
   const fields = {code: 1, _id: 0}
-  const list = await db.networks.find(query, fields).toArray()
+  const networks = db.collection('networks')
+  const list = await networks.find(query, fields).toArray()
 
   list.forEach(function (channel) {
-    if (!_contains(destList, channel.code)) {
+    if (!_.contains(destList, channel.code)) {
       destList.push(channel.code)
     }
   })
